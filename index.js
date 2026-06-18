@@ -8,6 +8,7 @@ const URL = process.env.TARGET_URL;
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const INTERVAL_MIN = Number(process.env.CHECK_INTERVAL_MIN || 30);
+
 const seen = new Set();
 
 async function tg(msg) {
@@ -25,14 +26,27 @@ function extractOffers(data) {
   function walk(x) {
     if (!x) return;
 
-    if (Array.isArray(x)) return x.forEach(walk);
+    if (Array.isArray(x)) {
+      x.forEach(walk);
+      return;
+    }
 
     if (typeof x === "object") {
       const title =
-        x.title || x.name || x.offer_name || x.offerName || x.campaign_name || x.campaignName;
+        x.title ||
+        x.name ||
+        x.offer_name ||
+        x.offerName ||
+        x.campaign_name ||
+        x.campaignName;
 
       const points =
-        x.points || x.reward || x.payout || x.amount || x.coins || x.virtual_currency_amount;
+        x.points ||
+        x.reward ||
+        x.payout ||
+        x.amount ||
+        x.coins ||
+        x.virtual_currency_amount;
 
       if (title) {
         offers.push({
@@ -71,15 +85,16 @@ async function getOffers() {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36"
   });
 
-  const apiUrls = new Set();
   let offers = [];
 
   page.on("response", async (res) => {
     const resUrl = res.url();
 
-    if (resUrl.includes("api") || resUrl.includes("offer") || resUrl.includes("campaign")) {
-      apiUrls.add(resUrl);
-
+    if (
+      resUrl.includes("api") ||
+      resUrl.includes("offer") ||
+      resUrl.includes("campaign")
+    ) {
       try {
         const type = res.headers()["content-type"] || "";
         if (type.includes("json")) {
@@ -109,7 +124,7 @@ async function getOffers() {
 
     offers = [...new Map(offers.map(o => [o.title.toLowerCase(), o])).values()];
 
-    return { offers, ipText, apiUrls: [...apiUrls] };
+    return { offers, ipText };
   } catch (err) {
     await browser.close();
     await ProxyChain.closeAnonymizedProxy(localProxy, true);
@@ -119,14 +134,10 @@ async function getOffers() {
 
 async function checkNewOffers() {
   try {
-    const { offers, ipText, apiUrls } = await getOffers();
+    const { offers, ipText } = await getOffers();
 
     if (!offers.length) {
-      await tg(
-        `❌ <b>No offers found</b>\n\n` +
-        `📡 ${ipText}\n\n` +
-        `Detected API URLs:\n${apiUrls.slice(0, 10).join("\n") || "No API found"}`
-      );
+      console.log("No offers found");
       return;
     }
 
@@ -141,7 +152,6 @@ async function checkNewOffers() {
           `━━━━━━━━━━━━━━\n\n` +
           `🌐 <b>Website:</b> GemiWall\n` +
           `🎯 <b>Offer:</b> ${offer.title}\n` +
-          `📦 <b>Network:</b> GemiAds\n` +
           `💰 <b>Reward:</b> ${offer.points} coins\n` +
           `👤 <b>User:</b> mrpoint8\n` +
           `🇺🇸 <b>Country:</b> USA\n\n` +
@@ -150,7 +160,7 @@ async function checkNewOffers() {
       }
     }
   } catch (err) {
-    await tg(`❌ <b>Bot/IP Error</b>\n${err.message}`);
+    console.log("Bot error:", err.message);
   }
 }
 
